@@ -38,6 +38,7 @@ OTHER DEALINGS IN THE SOFTWARE."
   :components
   ((:file "package")
    (:file "transactional-object")
+   (:file "copy")
    (:file "test"))
   :serial t
   :depends-on (:cl-store :ironclad :flexi-streams))

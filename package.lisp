@@ -1,3 +1,3 @@
 (defpackage transactional-object
-  (:use :cl :sb-mop))
+  (:use :cl :sb-mop :cl-store))
   

@@ -50,36 +50,15 @@
 
 (defun transactional-object-version (object)
   (let ((*transaction* nil))
-    (let ((lock (%lock object)))
-      (setf (%lock object) nil)
-      (let ((result (object-version object)))
-	(setf (%lock object) lock)
-	result))))
+    (object-version object)))
 
 (defclass transactional-object ()
   ((%lock :initform (sb-thread:make-mutex)
 	  :accessor %lock)))
 
-(defun copy-object (origin target &optional (ignore (lambda (arg)
-						      (declare (ignore arg))
-						      nil)))
-  (assert (equalp (class-of origin) (class-of target)))
-  (let ((class (class-of origin)))
-    (loop for slot in (sb-mop:class-slots class)
-	 for slot-name = (slot-value slot 'sb-pcl::name)
-	 when (and (equalp (slot-value slot 'sb-pcl::allocation)
-			   :instance)
-		   (not (funcall ignore slot-name))
-		   (slot-boundp origin slot-name))
-	 do (setf (slot-value target slot-name)
-		  (slot-value origin slot-name))))
-  target)
-
 (defun copy-transactional-object (origin target)
-  (copy-object origin target
-	       (lambda (slot-name)
-			       (not (equalp slot-name '%lock))
-	)))
+  (let ((*transaction* nil))
+    (copy-object origin target)))
 
 (defclass transactional-class (standard-class)
   ())
@@ -89,13 +68,12 @@
       (gethash object (objects transaction))
     (if found-p
 	(cdr object-copy-entry)
-	(let ((*transaction* nil))
-	  (let ((new-copy
-		 (copy-transactional-object object
-					    (allocate-instance (class-of object)))))
-	    (setf (gethash object (objects transaction))
-		  (cons (transactional-object-version object) new-copy))
-	    new-copy)))))
+	(let ((new-copy
+	       (copy-transactional-object object
+					  (allocate-instance (class-of object)))))
+	  (setf (gethash object (objects transaction))
+		(cons (transactional-object-version object) new-copy))
+	  new-copy))))
 
 (defmethod slot-value-using-class ((class transactional-class)
 				   (instance transactional-object)
@@ -104,8 +82,8 @@
   (if *transaction*
       (let ((name (slot-definition-name slot-def))
 	    (object-copy (transaction-object-copy instance)))
-	  (let ((*transaction* nil))
-	    (slot-value object-copy name)))
+	(let ((*transaction* nil))
+	  (slot-value object-copy name)))
       (call-next-method)))
 
 (defmethod (setf slot-value-using-class) (new-value (class transactional-class)
@@ -113,10 +91,10 @@
 					  slot-def)
   "Set the slot value in the transaction."
   (if *transaction*
-      (sb-thread:with-mutex ((%lock instance))
-	(let ((name (slot-definition-name slot-def))
-	      (object-copy (transaction-object-copy instance)))
-	  (let ((*transaction* nil))
+      (let ((*transaction* nil))
+	(sb-thread:with-mutex ((%lock instance))
+	  (let ((name (slot-definition-name slot-def))
+		(object-copy (transaction-object-copy instance)))
 	    (setf (slot-value object-copy name)
 		  new-value))))
       (call-next-method)))
@@ -230,4 +208,11 @@
   `(let ((,var (make-instance 'transaction)))
      ,@body
      (commit-transaction ,var)))
-  
+
+(defmethod serializable-slots-using-class ((object t) (class transactional-class))
+  (remove '%lock (call-next-method) :key (lambda (obj)
+					   (slot-value obj 'sb-pcl::name))))
+
+(defmethod copyable-slots-using-class ((object t) (class transactional-class))
+  (remove '%lock (call-next-method) :key (lambda (obj)
+					   (slot-value obj 'sb-pcl::name))))
