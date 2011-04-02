@@ -79,7 +79,8 @@
 				   (instance transactional-object)
 				   slot-def)
   "Get the slot value from the current transaction."
-  (if *transaction*
+  (if (and *transaction*
+	   (transactional-slot-p instance (slot-definition-name slot-def)))
       (let ((name (slot-definition-name slot-def))
 	    (object-copy (transaction-object-copy instance)))
 	(let ((*transaction* nil))
@@ -90,11 +91,12 @@
 					  (instance transactional-object)
 					  slot-def)
   "Set the slot value in the transaction."
-  (if *transaction*
-      (let ((*transaction* nil))
-	(sb-thread:with-mutex ((%lock instance))
-	  (let ((name (slot-definition-name slot-def))
-		(object-copy (transaction-object-copy instance)))
+  (if (and *transaction*
+	   (transactional-slot-p instance (slot-definition-name slot-def)))
+      (sb-thread:with-mutex ((%lock instance))
+	(let ((name (slot-definition-name slot-def))
+	      (object-copy (transaction-object-copy instance)))
+	  (let ((*transaction* nil))
 	    (setf (slot-value object-copy name)
 		  new-value))))
       (call-next-method)))
@@ -216,3 +218,33 @@
 (defmethod copyable-slots-using-class ((object t) (class transactional-class))
   (remove '%lock (call-next-method) :key (lambda (obj)
 					   (slot-value obj 'sb-pcl::name))))
+
+(defgeneric transactional-slots (object)
+  (declare (optimize speed))
+  (:documentation 
+   "Return a list of slot-definitions to serialize. The default
+    is to call transactional-slots-using-class with the object 
+    and the objects class")
+  (:method ((object standard-object))
+   (transactional-slots-using-class object (class-of object)))
+#+(or sbcl cmu openmcl allegro)
+  (:method ((object structure-object))
+   (transactional-slots-using-class object (class-of object)))
+  (:method ((object condition))
+   (transactional-slots-using-class object (class-of object))))
+
+; unfortunately the metaclass of conditions in sbcl and cmu 
+; are not standard-class
+
+(defgeneric transactional-slots-using-class (object class)
+  (declare (optimize speed))
+  (:documentation "Return a list of slot-definitions to serialize.
+   The default calls compute slots with class")
+  (:method ((object t) (class transactional-class))
+    (remove '%lock (class-slots class) :key (lambda (obj)
+					      (slot-value obj 'sb-pcl::name)))))
+
+(defmethod transactional-slot-p ((object transactional-object) slot-name)
+  (some (lambda (slot)
+	  (equalp (slot-value slot 'sb-pcl::name) slot-name))
+	(transactional-slots object)))

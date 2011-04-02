@@ -4,6 +4,7 @@
   (assert (equalp (class-of origin) (class-of target)))
   (loop for slot in (copyable-slots origin)
      for slot-name = (slot-value slot 'sb-pcl::name)
+     when (slot-boundp origin slot-name)
      do (setf (slot-value target slot-name)
 	      (slot-value origin slot-name)))
   target)
