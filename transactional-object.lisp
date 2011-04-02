@@ -205,9 +205,12 @@
 				(superclass standard-class))
   t)
 
+(defun make-transaction ()
+  (make-instance 'transaction))
+
 (defmacro with-transaction ((&optional (var '*transaction*))
 			    &body body)
-  `(let ((,var (make-instance 'transaction)))
+  `(let ((,var (make-transaction)))
      ,@body
      (commit-transaction ,var)))
 

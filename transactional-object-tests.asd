@@ -1,12 +1,12 @@
 (in-package :cl-user)
 
-(defpackage transactional-object-system
+(defpackage transactional-object-tests-system
   (:use :cl :asdf))
   
-(in-package :transactional-object-system)
+(in-package :transactional-object-tests-system)
 
-(defsystem transactional-object
-  :name "cl-config"
+(defsystem transactional-object-tests
+  :name "transactional-object tests"
   :author "Mariano Montone <marianomontone@gmail.com>"
   :version "0.1"
   :maintainer "Mariano Montone <marianomontone@gmail.com>"
@@ -36,8 +36,10 @@ OTHER DEALINGS IN THE SOFTWARE."
   :description "Transactional modification of CLOS objects."
   :long-description "Transactional modification of CLOS objects."
   :components
-  ((:file "package")
-   (:file "transactional-object")
-   (:file "copy"))
+  ((:module :tests
+	    :components
+	    ((:file "package")
+	     (:file "tests"))
+	    :serial t))
   :serial t
-  :depends-on (:cl-store :ironclad :flexi-streams))
+  :depends-on (:transactional-object :fiveam))
