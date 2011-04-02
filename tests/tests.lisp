@@ -35,3 +35,21 @@
 	(return-from nil)))
     (is (equalp (first-name p) "Mariano"))))
 
+;; transaction nesting
+;; TODO: implement nested transactions
+(test transaction-nesting-test
+  (let ((p (make-instance 'person :first-name "Mariano")))
+    (with-transaction ()
+      (setf (first-name p) "Martin")
+      (block nil
+	(with-transaction ()
+	  (setf (first-name p) "Marcos")
+	  (return-from nil))))
+    (is (equalp (first-name p) "Martin")))
+
+  (let ((p (make-instance 'person :first-name "Mariano")))
+    (with-transaction ()
+      (setf (first-name p) "Martin")
+      (with-transaction ()
+	(setf (first-name p) "Marcos")))
+    (is (equalp (first-name p) "Marcos"))))
