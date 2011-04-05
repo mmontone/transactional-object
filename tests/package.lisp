@@ -1,3 +1,3 @@
 (defpackage transactional-object-tests
-  (:nicknames :to-tests)
+  (:nicknames :tx-object-tests)
   (:use :cl :fiveam :transactional-object))

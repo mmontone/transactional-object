@@ -1,4 +1,4 @@
-(in-package :transactional-object)
+(in-package :tx-object)
 
 (defvar *transaction* nil "The current transaction")
 
@@ -207,6 +207,9 @@
 
 (defun make-transaction ()
   (make-instance 'transaction))
+
+(defun start-transaction ()
+  (setf *transaction* (make-transaction)))
 
 (defmacro with-transaction ((&optional (var '*transaction*))
 			    &body body)

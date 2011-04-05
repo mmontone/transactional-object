@@ -1,4 +1,4 @@
-(in-package :to-tests)
+(in-package :tx-object-tests)
 
 (def-suite transactional-object-tests)
 
