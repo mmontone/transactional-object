@@ -62,3 +62,16 @@
   (let ((p (make-instance 'person :first-name "Mariano")))
     (setf (first-name p) "Martin")
     (is (equalp (first-name p) "Martin"))))
+
+;; required transaction test
+(defclass client (person)
+  ((email :initarg :email
+	  :initform nil
+	  :accessor email))
+  (:metaclass transactional-class
+	      :requires-transaction nil))
+
+(test requires-transaction-test
+  (let ((p (make-instance 'client :first-name "Mariano")))
+    (signals error
+      (setf (first-name p) "Martin"))))

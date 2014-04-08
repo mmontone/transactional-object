@@ -11,8 +11,7 @@
 	   :initform nil
 	   :documentation "The parent transaction. Think of nested transactions semantics!!")
    (status :initform :new
-	   :accessor status)
-   ))
+	   :accessor status)))
 
 (defmethod commited-p ((transaction transaction))
   (equalp (status transaction) :commited))
@@ -60,8 +59,21 @@
   (let ((*transaction* nil))
     (copy-object origin target)))
 
+;; Question: how to initialize with initargs the arguments of a class in defclass??
+;; We want to do something like this:
+;; (defclass person ()
+;;   ((fullname :initarg :fullname
+;; 	     :accessor fullname
+;; 	     :initform nil))
+;;   (:metaclass transactional-class
+;; 	      :requires-transaction t))
+
 (defclass transactional-class (standard-class)
-  ())
+  ((requires-transaction :initarg :requires-transaction
+			 :initform nil
+			 :accessor requires-transaction-p
+			 :type boolean
+			 :documentation "If this slot is true, then trying to modify a transactional slot outside a transaction signals an error")))
 
 (defun transaction-object-copy (object &optional (transaction *transaction*))
   (multiple-value-bind (object-copy-entry found-p)
@@ -91,14 +103,24 @@
 					  (instance transactional-object)
 					  slot-def)
   "Set the slot value in the transaction."
-  (if (and *transaction*
-	   (transactional-slot-p instance (slot-definition-name slot-def)))
-      (sb-thread:with-mutex ((%lock instance))
-	(let ((name (slot-definition-name slot-def))
-	      (object-copy (transaction-object-copy instance)))
-	  (let ((*transaction* nil))
-	    (setf (slot-value object-copy name)
-		  new-value))))
+  (if (transactional-slot-p instance (slot-definition-name slot-def))
+      ;; a transactional slot is trying to be modified
+      (if *transaction*	  
+	  (sb-thread:with-mutex ((%lock instance))
+	    (let ((name (slot-definition-name slot-def))
+		  (object-copy (transaction-object-copy instance)))
+	      (let ((*transaction* nil))
+		(setf (slot-value object-copy name)
+		      new-value))))
+	  ;; else, there's no transaction
+	  ;; if a transaction is required to modify a transactional slot, fail
+	  (if (requires-transaction-p class)
+	      (error "Transaction is required to modify ~A in ~A"
+		     (slot-definition-name slot-def)
+		     instance)
+	      ;; else, just modify the slot
+	      (call-next-method)))
+      ;; else, it is a normal slot, modify it
       (call-next-method)))
 
 ;; (defmethod slot-boundp-using-class ((class persistent-metaclass) (instance persistent-object) (slot-def persistent-slot-definition))
