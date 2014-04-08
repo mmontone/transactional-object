@@ -1,5 +1,8 @@
 (in-package :tx-object-tests)
 
+(defun run-tests ()
+  (fiveam:run 'transactional-object-tests))
+
 (def-suite transactional-object-tests)
 
 (in-suite transactional-object-tests)
