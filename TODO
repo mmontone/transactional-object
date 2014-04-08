@@ -1,0 +1,1 @@
+Transactional slots. :transactional <boolean> initarg in defclass for transactional-class classes
