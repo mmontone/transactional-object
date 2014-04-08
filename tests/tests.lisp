@@ -56,3 +56,9 @@
       (with-transaction ()
 	(setf (first-name p) "Marcos")))
     (is (equalp (first-name p) "Marcos"))))
+
+;; no transaction test
+(test no-transaction-test
+  (let ((p (make-instance 'person :first-name "Mariano")))
+    (setf (first-name p) "Martin")
+    (is (equalp (first-name p) "Martin"))))
