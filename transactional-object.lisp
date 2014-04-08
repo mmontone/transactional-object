@@ -9,9 +9,10 @@
    (parent :initarg :parent
 	   :reader parent
 	   :initform nil
-	   :documentation "The parent transaction. Think of nested transactions semantics!!")
+	   :documentation "The parent transaction")
    (status :initform :new
-	   :accessor status)))
+	   :accessor status
+	   :documentation "The transaction status. May be :new, :commited, :failed, etc")))
 
 (defmethod commited-p ((transaction transaction))
   (equalp (status transaction) :commited))
@@ -195,7 +196,11 @@
     (loop for (version . object-copy) being the hash-values of (objects transaction)
        using (hash-key object)
        when (not (equalp (transactional-object-version object) version))
-       do (error "~A is not valid ~A ~A" transaction (object-version object) version))))
+       do (error "~A is not valid: conflict in ~A (~A <> ~A)"
+		 transaction
+		 object
+		 (object-version object)
+		 version))))
 
 (defmethod commit-transaction ((transaction transaction))
   (let ((*transaction* nil))
@@ -214,23 +219,29 @@
 	   (sb-thread:release-mutex (%lock object))))))
 
 (defmethod rollback-transaction ((transaction transaction))
-  (setf (objects transaction) (make-hash-table)))
+  (setf (objects transaction) (make-hash-table))
+  (setf (status transaction) :rolled-back))
 
 (defmethod validate-superclass ((class transactional-class)
 				(superclass standard-class))
   t)
 
-(defun make-transaction ()
-  (make-instance 'transaction))
+(defun make-transaction (&rest initargs)
+  (apply #'make-instance 'transaction initargs))
 
 (defun start-transaction ()
-  (setf *transaction* (make-transaction)))
+  (setf *transaction* (make-transaction :parent *transaction*)))
 
-(defmacro with-transaction ((&optional (var '*transaction*))
+(defmacro with-transaction ((&optional (var '*transaction*)
+				       (parent '*transaction*))
 			    &body body)
-  `(let ((,var (make-transaction)))
-     ,@body
-     (commit-transaction ,var)))
+  `(let ((,var (make-transaction :parent ,parent)))
+     (unwind-protect
+	  (progn
+	    ,@body
+	    (commit-transaction ,var))
+       (if (not (equalp (status ,var) :commited))
+	   (rollback-transaction ,var)))))
 
 (defmethod serializable-slots-using-class ((object t) (class transactional-class))
   (remove '%lock (call-next-method) :key (lambda (obj)
@@ -259,11 +270,14 @@
 
 (defgeneric transactional-slots-using-class (object class)
   (declare (optimize speed))
-  (:documentation "Return a list of slot-definitions to serialize.
+  (:documentation "Return a list of transactional slot-definitions.
    The default calls compute slots with class")
   (:method ((object t) (class transactional-class))
-    (remove '%lock (class-slots class) :key (lambda (obj)
-					      (slot-value obj 'sb-pcl::name)))))
+    (remove '%lock (remove 'requires-transaction
+			   (class-slots class) :key (lambda (obj)
+						      (slot-value obj 'sb-pcl::name)))
+	    :key (lambda (obj)
+						      (slot-value obj 'sb-pcl::name)))))
 
 (defmethod transactional-slot-p ((object transactional-object) slot-name)
   (some (lambda (slot)
