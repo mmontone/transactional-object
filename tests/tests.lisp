@@ -68,8 +68,8 @@
   ((email :initarg :email
 	  :initform nil
 	  :accessor email))
-  (:metaclass transactional-class
-	      :requires-transaction nil))
+  (:metaclass transactional-class)
+  (:default-initargs :requires-transaction t))
 
 (test requires-transaction-test
   (let ((p (make-instance 'client :first-name "Mariano")))

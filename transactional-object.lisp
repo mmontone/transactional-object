@@ -53,27 +53,20 @@
 
 (defclass transactional-object ()
   ((%lock :initform (sb-thread:make-mutex)
-	  :accessor %lock)))
+	  :accessor %lock)
+   (requires-transaction :initarg :requires-transaction
+			 :initform nil
+			 :accessor requires-transaction-p
+			 :type boolean
+			 :allocation :class
+			 :documentation "If this slot is true, then trying to modify a transactional slot outside a transaction signals an error")))
 
 (defun copy-transactional-object (origin target)
   (let ((*transaction* nil))
     (copy-object origin target)))
 
-;; Question: how to initialize with initargs the arguments of a class in defclass??
-;; We want to do something like this:
-;; (defclass person ()
-;;   ((fullname :initarg :fullname
-;; 	     :accessor fullname
-;; 	     :initform nil))
-;;   (:metaclass transactional-class
-;; 	      :requires-transaction t))
-
 (defclass transactional-class (standard-class)
-  ((requires-transaction :initarg :requires-transaction
-			 :initform nil
-			 :accessor requires-transaction-p
-			 :type boolean
-			 :documentation "If this slot is true, then trying to modify a transactional slot outside a transaction signals an error")))
+  ())
 
 (defun transaction-object-copy (object &optional (transaction *transaction*))
   (multiple-value-bind (object-copy-entry found-p)
@@ -114,7 +107,7 @@
 		      new-value))))
 	  ;; else, there's no transaction
 	  ;; if a transaction is required to modify a transactional slot, fail
-	  (if (requires-transaction-p class)
+	  (if (requires-transaction-p instance)
 	      (error "Transaction is required to modify ~A in ~A"
 		     (slot-definition-name slot-def)
 		     instance)
